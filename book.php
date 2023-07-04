@@ -32,6 +32,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_hold'])) {
     $message = 'Hold placed successfully.';
 }
 
+// Handle review submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_review'])) {
+    if (empty($_SESSION['member_id'])) {
+        redirect('/login.php?next=/book.php?id=' . $id);
+    }
+    $mid     = $_SESSION['member_id'];
+    $rating  = (int)($_POST['rating'] ?? 3);
+    $comment = $_POST['comment'] ?? '';
+
+    // Naive: raw INSERT with string interpolation
+    $pdo->query("INSERT INTO review (Book_id, Member_id, Rating, Comment, CreatedAt)
+                 VALUES ($id, $mid, $rating, '$comment', NOW())");
+    $message = 'Review submitted. Thank you!';
+}
+
 // Average rating
 $avg_row = $pdo->query("SELECT AVG(Rating) AS avg_rating, COUNT(*) AS cnt FROM review WHERE Book_id = $id")->fetch();
 $avg_rating = $avg_row['avg_rating'] ? round($avg_row['avg_rating'], 1) : null;
@@ -92,6 +107,29 @@ require __DIR__ . '/partials/header.php';
             </div>
         </div>
         <?php endforeach; ?>
+        <?php endif; ?>
+
+        <?php if (!empty($_SESSION['member_id'])): ?>
+        <div class="card mt-3">
+            <div class="card-header">Write a Review</div>
+            <div class="card-body">
+                <form method="post">
+                    <div class="mb-3">
+                        <label class="form-label">Rating</label>
+                        <select class="form-select w-auto" name="rating">
+                            <?php for ($i = 5; $i >= 1; $i--): ?>
+                            <option value="<?= $i ?>"><?= str_repeat('★', $i) ?></option>
+                            <?php endfor; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Comment (optional)</label>
+                        <textarea class="form-control" name="comment" rows="3"></textarea>
+                    </div>
+                    <button type="submit" name="submit_review" class="btn btn-primary">Submit Review</button>
+                </form>
+            </div>
+        </div>
         <?php endif; ?>
     </div>
     <div class="col-md-4">
