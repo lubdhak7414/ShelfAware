@@ -10,12 +10,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $pass  = $_POST['password'] ?? '';
 
-    // Compare against MD5 hash stored in the database
-    $hash   = md5($pass);
-    $result = $pdo->query("SELECT * FROM member WHERE Email = '$email' AND Password = '$hash'");
-    $member = $result->fetch();
+    // Use prepared statement and password_verify instead of md5
+    $stmt = $pdo->prepare("SELECT * FROM member WHERE Email = ?");
+    $stmt->execute([$email]);
+    $member = $stmt->fetch();
 
-    if ($member) {
+    if ($member && password_verify($pass, $member['Password'])) {
         $_SESSION['member_id']   = $member['Member_id'];
         $_SESSION['member_name'] = $member['Name'];
         $next = $_GET['next'] ?? '/my_account.php';

@@ -15,11 +15,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($name === '' || $email === '' || $pass === '') {
         $error = 'Name, email and password are required.';
     } else {
-        // Store password as MD5 hash
-        $hash = md5($pass);
+        // Use bcrypt instead of md5
+        $hash = password_hash($pass, PASSWORD_BCRYPT);
 
-        $pdo->query("INSERT INTO member (Name, Email, Phone, JoinDate, Password)
-                     VALUES ('$name', '$email', '$phone', CURDATE(), '$hash')");
+        // Prepared statement to prevent SQL injection
+        $stmt = $pdo->prepare("INSERT INTO member (Name, Email, Phone, JoinDate, Password) VALUES (?, ?, ?, CURDATE(), ?)");
+        $stmt->execute([$name, $email, $phone, $hash]);
 
         redirect('/login.php?registered=1');
     }

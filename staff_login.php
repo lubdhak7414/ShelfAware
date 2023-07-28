@@ -10,12 +10,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
     $pass     = $_POST['password'] ?? '';
 
-    // Naive: MD5 hash and string-interpolated query
-    $hash   = md5($pass);
-    $result = $pdo->query("SELECT * FROM staff WHERE Username = '$username' AND Password = '$hash'");
-    $staff  = $result->fetch();
+    // Use prepared statement and password_verify instead of md5
+    $stmt = $pdo->prepare("SELECT * FROM staff WHERE Username = ?");
+    $stmt->execute([$username]);
+    $staff = $stmt->fetch();
 
-    if ($staff) {
+    if ($staff && password_verify($pass, $staff['Password'])) {
         $_SESSION['staff_id']       = $staff['Staff_id'];
         $_SESSION['staff_username'] = $staff['Username'];
         $_SESSION['staff_role']     = $staff['Role'];
