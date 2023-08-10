@@ -11,21 +11,22 @@ $error = '';
 $fine_added = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $loan_id = $_POST['loan_id'] ?? '';
+    $loan_id = (int)($_POST['loan_id'] ?? 0);
 
-    if ($loan_id === '') {
+    if ($loan_id === 0) {
         $error = 'Please select a loan.';
     } else {
-        // Naive: raw query with POST data
-        $loan = $pdo->query("SELECT l.*, b.Title, b.Book_id FROM loan l JOIN book b ON l.Book_id = b.Book_id WHERE l.Loan_id = $loan_id AND l.ReturnDate IS NULL")->fetch();
+        $stmt = $pdo->prepare("SELECT l.*, b.Title, b.Book_id FROM loan l JOIN book b ON l.Book_id = b.Book_id WHERE l.Loan_id = ? AND l.ReturnDate IS NULL");
+        $stmt->execute([$loan_id]);
+        $loan = $stmt->fetch();
 
         if (!$loan) {
             $error = 'Loan not found or already returned.';
         } else {
             $pdo->beginTransaction();
 
-            // Mark returned
-            $pdo->query("UPDATE loan SET ReturnDate = CURDATE() WHERE Loan_id = $loan_id");
+            $stmt = $pdo->prepare("UPDATE loan SET ReturnDate = CURDATE() WHERE Loan_id = ?");
+            $stmt->execute([$loan_id]);
 
             // Calculate fine if overdue
             $due  = new DateTime($loan['DueDate']);
@@ -35,25 +36,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($diff->invert && $diff->days > 0) {
                 $days   = $diff->days;
                 $amount = $days * FINE_PER_DAY;
-                $pdo->query("INSERT INTO fine (Loan_id, Amount, Paid) VALUES ($loan_id, $amount, 0)");
+                $stmt   = $pdo->prepare("INSERT INTO fine (Loan_id, Amount, Paid) VALUES (?, ?, 0)");
+                $stmt->execute([$loan_id, $amount]);
                 $fine_added = $amount;
             }
 
             // Restore copy count
-            $book_id = $loan['Book_id'];
-            $pdo->query("UPDATE book SET CopiesAvailable = CopiesAvailable + 1 WHERE Book_id = $book_id");
+            $stmt = $pdo->prepare("UPDATE book SET CopiesAvailable = CopiesAvailable + 1 WHERE Book_id = ?");
+            $stmt->execute([$loan['Book_id']]);
 
             // Activate a waiting hold if one exists
-            $hold = $pdo->query("SELECT * FROM hold WHERE Book_id = $book_id AND Status = 'waiting' ORDER BY PlacedAt ASC LIMIT 1")->fetch();
+            $stmt = $pdo->prepare("SELECT * FROM hold WHERE Book_id = ? AND Status = 'waiting' ORDER BY PlacedAt ASC LIMIT 1");
+            $stmt->execute([$loan['Book_id']]);
+            $hold = $stmt->fetch();
+
             if ($hold) {
-                $hold_id = $hold['Hold_id'];
-                $pdo->query("UPDATE hold SET Status = 'ready' WHERE Hold_id = $hold_id");
+                $stmt = $pdo->prepare("UPDATE hold SET Status = 'ready' WHERE Hold_id = ?");
+                $stmt->execute([$hold['Hold_id']]);
             }
 
-            // Log activity
-            $staff_id = $_SESSION['staff_id'];
-            $pdo->query("INSERT INTO activity_log (Staff_id, Action, EntityType, EntityId, CreatedAt)
-                         VALUES ($staff_id, 'Processed return', 'loan', $loan_id, NOW())");
+            $stmt = $pdo->prepare("INSERT INTO activity_log (Staff_id, Action, EntityType, EntityId, CreatedAt) VALUES (?, 'Processed return', 'loan', ?, NOW())");
+            $stmt->execute([$_SESSION['staff_id'], $loan_id]);
 
             $pdo->commit();
 

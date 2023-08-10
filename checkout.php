@@ -10,35 +10,38 @@ $msg   = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $book_id   = $_POST['book_id'] ?? '';
-    $member_id = $_POST['member_id'] ?? '';
+    $book_id   = (int)($_POST['book_id'] ?? 0);
+    $member_id = (int)($_POST['member_id'] ?? 0);
 
-    if ($book_id === '' || $member_id === '') {
+    if ($book_id === 0 || $member_id === 0) {
         $error = 'Please select both a book and a member.';
     } else {
-        // Naive: raw queries with POST data
-        $book = $pdo->query("SELECT * FROM book WHERE Book_id = $book_id")->fetch();
+        $stmt = $pdo->prepare("SELECT * FROM book WHERE Book_id = ?");
+        $stmt->execute([$book_id]);
+        $book = $stmt->fetch();
 
         if (!$book) {
             $error = 'Book not found.';
         } elseif ((int)$book['CopiesAvailable'] < 1) {
             $error = 'No copies available to check out.';
         } else {
-            $member = $pdo->query("SELECT * FROM member WHERE Member_id = $member_id")->fetch();
+            $stmt = $pdo->prepare("SELECT * FROM member WHERE Member_id = ?");
+            $stmt->execute([$member_id]);
+            $member = $stmt->fetch();
+
             if (!$member) {
                 $error = 'Member not found.';
             } else {
-                // Insert loan
-                $pdo->query("INSERT INTO loan (Book_id, Member_id, LoanDate, DueDate)
-                             VALUES ($book_id, $member_id, CURDATE(), DATE_ADD(CURDATE(), INTERVAL " . LOAN_DAYS . " DAY))");
+                $stmt = $pdo->prepare("INSERT INTO loan (Book_id, Member_id, LoanDate, DueDate) VALUES (?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL ? DAY))");
+                $stmt->execute([$book_id, $member_id, LOAN_DAYS]);
 
-                // Decrease available copies
-                $pdo->query("UPDATE book SET CopiesAvailable = CopiesAvailable - 1 WHERE Book_id = $book_id");
+                $loan_id = $pdo->lastInsertId();
 
-                // Log activity
-                $staff_id = $_SESSION['staff_id'];
-                $pdo->query("INSERT INTO activity_log (Staff_id, Action, EntityType, EntityId, CreatedAt)
-                             VALUES ($staff_id, 'Checked out book', 'loan', LAST_INSERT_ID(), NOW())");
+                $stmt = $pdo->prepare("UPDATE book SET CopiesAvailable = CopiesAvailable - 1 WHERE Book_id = ?");
+                $stmt->execute([$book_id]);
+
+                $stmt = $pdo->prepare("INSERT INTO activity_log (Staff_id, Action, EntityType, EntityId, CreatedAt) VALUES (?, 'Checked out book', 'loan', ?, NOW())");
+                $stmt->execute([$_SESSION['staff_id'], $loan_id]);
 
                 $msg = 'Book checked out successfully. Due in ' . LOAN_DAYS . ' days.';
             }

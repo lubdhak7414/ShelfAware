@@ -6,16 +6,22 @@ require_once __DIR__ . '/helpers.php';
 require_login();
 
 $pdo = get_pdo();
-$mid = $_SESSION['member_id'];
+$mid = (int)$_SESSION['member_id'];
 
-// Current loans — naive query
-$loans = $pdo->query("SELECT l.*, b.Title FROM loan l JOIN book b ON l.Book_id = b.Book_id WHERE l.Member_id = $mid ORDER BY l.LoanDate DESC")->fetchAll();
+// Current loans
+$stmt = $pdo->prepare("SELECT l.*, b.Title FROM loan l JOIN book b ON l.Book_id = b.Book_id WHERE l.Member_id = ? ORDER BY l.LoanDate DESC");
+$stmt->execute([$mid]);
+$loans = $stmt->fetchAll();
 
-// Holds — naive query
-$holds = $pdo->query("SELECT h.*, b.Title FROM hold h JOIN book b ON h.Book_id = b.Book_id WHERE h.Member_id = $mid ORDER BY h.PlacedAt DESC")->fetchAll();
+// Holds
+$stmt = $pdo->prepare("SELECT h.*, b.Title FROM hold h JOIN book b ON h.Book_id = b.Book_id WHERE h.Member_id = ? ORDER BY h.PlacedAt DESC");
+$stmt->execute([$mid]);
+$holds = $stmt->fetchAll();
 
-// Fines — naive query
-$fines = $pdo->query("SELECT f.*, b.Title FROM fine f JOIN loan l ON f.Loan_id = l.Loan_id JOIN book b ON l.Book_id = b.Book_id WHERE l.Member_id = $mid ORDER BY f.Fine_id DESC")->fetchAll();
+// Fines
+$stmt = $pdo->prepare("SELECT f.*, b.Title FROM fine f JOIN loan l ON f.Loan_id = l.Loan_id JOIN book b ON l.Book_id = b.Book_id WHERE l.Member_id = ? ORDER BY f.Fine_id DESC");
+$stmt->execute([$mid]);
+$fines = $stmt->fetchAll();
 
 $pageTitle = 'My Account — ' . APP_NAME;
 require __DIR__ . '/partials/header.php';

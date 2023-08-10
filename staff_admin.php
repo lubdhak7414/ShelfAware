@@ -13,31 +13,34 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_staff'])) {
     $username = trim($_POST['username'] ?? '');
     $email    = trim($_POST['email'] ?? '');
-    $role     = $_POST['role'] ?? 'librarian';
+    $role     = in_array($_POST['role'] ?? '', ['librarian', 'admin']) ? $_POST['role'] : 'librarian';
     $pass     = $_POST['password'] ?? '';
 
     if ($username === '' || $email === '' || $pass === '') {
         $error = 'All fields are required.';
     } else {
-        $hash = md5($pass);
-        // Naive INSERT
-        $pdo->query("INSERT INTO staff (Username, Password, Email, Role) VALUES ('$username', '$hash', '$email', '$role')");
+        $hash = password_hash($pass, PASSWORD_BCRYPT);
+        $stmt = $pdo->prepare("INSERT INTO staff (Username, Password, Email, Role) VALUES (?, ?, ?, ?)");
+        $stmt->execute([$username, $hash, $email, $role]);
 
-        $staff_id = $_SESSION['staff_id'];
-        $pdo->query("INSERT INTO activity_log (Staff_id, Action, EntityType, EntityId, CreatedAt)
-                     VALUES ($staff_id, 'Added staff account: $username', 'staff', LAST_INSERT_ID(), NOW())");
+        $new_id = $pdo->lastInsertId();
+        $action = 'Added staff account: ' . $username;
+        $stmt   = $pdo->prepare("INSERT INTO activity_log (Staff_id, Action, EntityType, EntityId, CreatedAt) VALUES (?, ?, 'staff', ?, NOW())");
+        $stmt->execute([$_SESSION['staff_id'], $action, $new_id]);
         $msg = 'Staff account created.';
     }
 }
 
 // Delete staff
-if (isset($_GET['delete_staff']) && (int)$_GET['delete_staff'] !== (int)$_SESSION['staff_id']) {
+if (isset($_GET['delete_staff'])) {
     $sid = (int)$_GET['delete_staff'];
-    $pdo->query("DELETE FROM staff WHERE Staff_id = $sid");
-    $staff_id = $_SESSION['staff_id'];
-    $pdo->query("INSERT INTO activity_log (Staff_id, Action, EntityType, EntityId, CreatedAt)
-                 VALUES ($staff_id, 'Deleted staff account', 'staff', $sid, NOW())");
-    redirect('/staff_admin.php?deleted=1');
+    if ($sid !== (int)$_SESSION['staff_id']) {
+        $stmt = $pdo->prepare("DELETE FROM staff WHERE Staff_id = ?");
+        $stmt->execute([$sid]);
+        $stmt = $pdo->prepare("INSERT INTO activity_log (Staff_id, Action, EntityType, EntityId, CreatedAt) VALUES (?, 'Deleted staff account', 'staff', ?, NOW())");
+        $stmt->execute([$_SESSION['staff_id'], $sid]);
+        redirect('/staff_admin.php?deleted=1');
+    }
 }
 
 $staff_list = $pdo->query("SELECT * FROM staff ORDER BY Username")->fetchAll();

@@ -11,19 +11,18 @@ $error = '';
 
 // Fulfil or cancel a hold
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $hold_id = $_POST['hold_id'] ?? '';
+    $hold_id = (int)($_POST['hold_id'] ?? 0);
     $action  = $_POST['hold_action'] ?? '';
 
-    if ($hold_id === '' || !in_array($action, ['ready', 'cancelled'])) {
+    if ($hold_id === 0 || !in_array($action, ['ready', 'cancelled'])) {
         $error = 'Invalid request.';
     } else {
-        // Naive: raw query
-        $pdo->query("UPDATE hold SET Status = '$action' WHERE Hold_id = $hold_id");
+        $stmt = $pdo->prepare("UPDATE hold SET Status = ? WHERE Hold_id = ?");
+        $stmt->execute([$action, $hold_id]);
 
-        $staff_id = $_SESSION['staff_id'];
-        $label    = $action === 'ready' ? 'Marked hold ready' : 'Cancelled hold';
-        $pdo->query("INSERT INTO activity_log (Staff_id, Action, EntityType, EntityId, CreatedAt)
-                     VALUES ($staff_id, '$label', 'hold', $hold_id, NOW())");
+        $label = $action === 'ready' ? 'Marked hold ready' : 'Cancelled hold';
+        $stmt  = $pdo->prepare("INSERT INTO activity_log (Staff_id, Action, EntityType, EntityId, CreatedAt) VALUES (?, ?, 'hold', ?, NOW())");
+        $stmt->execute([$_SESSION['staff_id'], $label, $hold_id]);
 
         $msg = 'Hold updated.';
     }

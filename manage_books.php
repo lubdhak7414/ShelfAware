@@ -12,34 +12,32 @@ $error  = '';
 
 // DELETE
 if ($action === 'delete' && isset($_GET['id'])) {
-    $id = $_GET['id'];
-    $pdo->query("DELETE FROM book WHERE Book_id = $id");
+    $id   = (int)$_GET['id'];
+    $stmt = $pdo->prepare("DELETE FROM book WHERE Book_id = ?");
+    $stmt->execute([$id]);
     redirect('/manage_books.php?deleted=1');
 }
 
 // ADD / EDIT POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $title    = $_POST['title'] ?? '';
-    $author   = $_POST['author'] ?? '';
-    $isbn     = $_POST['isbn'] ?? '';
-    $cat      = $_POST['category_id'] ?? '';
-    $total    = $_POST['copies_total'] ?? 1;
-    $avail    = $_POST['copies_available'] ?? 1;
-    $year     = $_POST['year'] ?? '';
+    $title = trim($_POST['title'] ?? '');
+    $author= trim($_POST['author'] ?? '');
+    $isbn  = trim($_POST['isbn'] ?? '');
+    $cat   = (int)($_POST['category_id'] ?? 0);
+    $total = (int)($_POST['copies_total'] ?? 1);
+    $avail = (int)($_POST['copies_available'] ?? 1);
+    $year  = $_POST['year'] !== '' ? (int)$_POST['year'] : null;
 
     if ($title === '' || $author === '') {
         $error = 'Title and Author are required.';
     } elseif (isset($_POST['book_id']) && $_POST['book_id'] !== '') {
-        // UPDATE — naive string interpolation
-        $bid = $_POST['book_id'];
-        $pdo->query("UPDATE book SET Title='$title', Author='$author', ISBN='$isbn',
-                     Category_id=$cat, CopiesTotal=$total, CopiesAvailable=$avail, Year=$year
-                     WHERE Book_id=$bid");
+        $bid  = (int)$_POST['book_id'];
+        $stmt = $pdo->prepare("UPDATE book SET Title=?, Author=?, ISBN=?, Category_id=?, CopiesTotal=?, CopiesAvailable=?, Year=? WHERE Book_id=?");
+        $stmt->execute([$title, $author, $isbn, $cat, $total, $avail, $year, $bid]);
         redirect('/manage_books.php?updated=1');
     } else {
-        // INSERT — naive string interpolation
-        $pdo->query("INSERT INTO book (Title, Author, ISBN, Category_id, CopiesTotal, CopiesAvailable, Year)
-                     VALUES ('$title', '$author', '$isbn', $cat, $total, $avail, $year)");
+        $stmt = $pdo->prepare("INSERT INTO book (Title, Author, ISBN, Category_id, CopiesTotal, CopiesAvailable, Year) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$title, $author, $isbn, $cat, $total, $avail, $year]);
         redirect('/manage_books.php?added=1');
     }
 }
@@ -47,8 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Fetch edit target
 $edit_book  = null;
 if ($action === 'edit' && isset($_GET['id'])) {
-    $id        = $_GET['id'];
-    $edit_book = $pdo->query("SELECT * FROM book WHERE Book_id = $id")->fetch();
+    $id   = (int)$_GET['id'];
+    $stmt = $pdo->prepare("SELECT * FROM book WHERE Book_id = ?");
+    $stmt->execute([$id]);
+    $edit_book = $stmt->fetch();
 }
 
 $categories = $pdo->query("SELECT * FROM category ORDER BY Name")->fetchAll();

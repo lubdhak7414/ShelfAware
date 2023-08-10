@@ -5,9 +5,11 @@ require_once __DIR__ . '/helpers.php';
 
 $pdo = get_pdo();
 
-// Naive: raw query with GET parameter
-$id   = $_GET['id'];
-$book = $pdo->query("SELECT b.*, c.Name AS CategoryName FROM book b JOIN category c ON b.Category_id = c.Category_id WHERE b.Book_id = $id")->fetch();
+$id = (int)($_GET['id'] ?? 0);
+
+$stmt = $pdo->prepare("SELECT b.*, c.Name AS CategoryName FROM book b JOIN category c ON b.Category_id = c.Category_id WHERE b.Book_id = ?");
+$stmt->execute([$id]);
+$book = $stmt->fetch();
 
 if (!$book) {
     http_response_code(404);
@@ -26,9 +28,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_hold'])) {
     if (empty($_SESSION['member_id'])) {
         redirect('/login.php?next=/book.php?id=' . $id);
     }
-    $mid = $_SESSION['member_id'];
-    // Naive insert
-    $pdo->query("INSERT INTO hold (Book_id, Member_id, PlacedAt, Status) VALUES ($id, $mid, NOW(), 'waiting')");
+    $mid  = $_SESSION['member_id'];
+    $stmt = $pdo->prepare("INSERT INTO hold (Book_id, Member_id, PlacedAt, Status) VALUES (?, ?, NOW(), 'waiting')");
+    $stmt->execute([$id, $mid]);
     $message = 'Hold placed successfully.';
 }
 
@@ -39,20 +41,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_review'])) {
     }
     $mid     = $_SESSION['member_id'];
     $rating  = (int)($_POST['rating'] ?? 3);
-    $comment = $_POST['comment'] ?? '';
+    $rating  = max(1, min(5, $rating));
+    $comment = trim($_POST['comment'] ?? '');
 
-    // Naive: raw INSERT with string interpolation
-    $pdo->query("INSERT INTO review (Book_id, Member_id, Rating, Comment, CreatedAt)
-                 VALUES ($id, $mid, $rating, '$comment', NOW())");
+    $stmt = $pdo->prepare("INSERT INTO review (Book_id, Member_id, Rating, Comment, CreatedAt) VALUES (?, ?, ?, ?, NOW())");
+    $stmt->execute([$id, $mid, $rating, $comment]);
     $message = 'Review submitted. Thank you!';
 }
 
 // Average rating
-$avg_row = $pdo->query("SELECT AVG(Rating) AS avg_rating, COUNT(*) AS cnt FROM review WHERE Book_id = $id")->fetch();
+$stmt = $pdo->prepare("SELECT AVG(Rating) AS avg_rating, COUNT(*) AS cnt FROM review WHERE Book_id = ?");
+$stmt->execute([$id]);
+$avg_row    = $stmt->fetch();
 $avg_rating = $avg_row['avg_rating'] ? round($avg_row['avg_rating'], 1) : null;
 
 // Reviews
-$reviews = $pdo->query("SELECT r.*, m.Name AS MemberName FROM review r JOIN member m ON r.Member_id = m.Member_id WHERE r.Book_id = $id ORDER BY r.CreatedAt DESC")->fetchAll();
+$stmt = $pdo->prepare("SELECT r.*, m.Name AS MemberName FROM review r JOIN member m ON r.Member_id = m.Member_id WHERE r.Book_id = ? ORDER BY r.CreatedAt DESC");
+$stmt->execute([$id]);
+$reviews = $stmt->fetchAll();
 
 $pageTitle = e($book['Title']) . ' — ' . APP_NAME;
 require __DIR__ . '/partials/header.php';
