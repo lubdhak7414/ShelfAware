@@ -1,0 +1,76 @@
+/* ShelfAware — custom stylesheet */
+
+body {
+    background-color: #f8f9fa;
+}
+
+/* Navbar brand */
+.navbar-brand {
+    letter-spacing: 0.5px;
+    font-size: 1.3rem;
+}
+
+/* Book cards on catalogue page */
+.book-card {
+    transition: box-shadow 0.15s ease-in-out;
+    border: 1px solid #dee2e6;
+}
+
+.book-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.book-card .card-title a {
+    color: #212529;
+}
+
+.book-card .card-title a:hover {
+    color: #0d6efd;
+}
+
+/* Overdue highlight */
+.overdue-row,
+tr.table-danger td {
+    color: #842029;
+    font-weight: 500;
+}
+
+/* Star ratings */
+.text-warning {
+    font-size: 1.05rem;
+    letter-spacing: 1px;
+}
+
+/* Staff dashboard stat cards */
+.card h3 {
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+/* Fine badge */
+.badge.bg-warning {
+    color: #000 !important;
+}
+
+/* Tables */
+.table th {
+    font-weight: 600;
+    background-color: #f1f3f5;
+}
+
+/* Footer */
+footer {
+    font-size: 0.875rem;
+}
+
+/* Form controls focus */
+.form-control:focus,
+.form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+/* Alert improvements */
+.alert {
+    border-radius: 0.5rem;
+}
