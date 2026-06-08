@@ -28,9 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("UPDATE loan SET ReturnDate = CURDATE() WHERE Loan_id = ?");
             $stmt->execute([$loan_id]);
 
-            // Calculate fine if overdue
+            // Calculate fine if overdue. Compare date-only so time-of-day
+            // doesn't accidentally trigger a fine on the due date itself.
             $due  = new DateTime($loan['DueDate']);
-            $now  = new DateTime();
+            $now  = new DateTime('today');
             $diff = $now->diff($due);
 
             if ($diff->invert && $diff->days > 0) {
