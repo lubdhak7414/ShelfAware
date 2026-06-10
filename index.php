@@ -7,16 +7,24 @@ $pdo = get_pdo();
 
 $search   = trim($_GET['q'] ?? '');
 $cat_id   = (int)($_GET['cat'] ?? 0);
+$page     = max(1, (int)($_GET['page'] ?? 1));
+$per_page = 25;
 
-// Fetch categories for filter
-$categories = $pdo->query("SELECT * FROM category ORDER BY Name")->fetchAll();
+// Fetch categories with per-category book counts for the filter dropdown
+$categories = $pdo->query(
+    "SELECT c.*, COUNT(b.Book_id) AS BookCount
+     FROM category c
+     LEFT JOIN book b ON b.Category_id = c.Category_id
+     GROUP BY c.Category_id
+     ORDER BY c.Name"
+)->fetchAll();
 
-// Build book query
-$sql    = "SELECT b.*, c.Name AS CategoryName FROM book b JOIN category c ON b.Category_id = c.Category_id WHERE 1=1";
+// Build base WHERE clause
+$where  = "WHERE 1=1";
 $params = [];
 
 if ($search !== '') {
-    $sql     .= " AND (b.Title LIKE ? OR b.Author LIKE ? OR b.ISBN LIKE ?)";
+    $where   .= " AND (b.Title LIKE ? OR b.Author LIKE ? OR b.ISBN LIKE ?)";
     $like     = '%' . $search . '%';
     $params[] = $like;
     $params[] = $like;
@@ -24,12 +32,20 @@ if ($search !== '') {
 }
 
 if ($cat_id > 0) {
-    $sql     .= " AND b.Category_id = ?";
+    $where   .= " AND b.Category_id = ?";
     $params[] = $cat_id;
 }
 
-$sql .= " ORDER BY b.Title";
+// Total count for pagination
+$cnt_stmt = $pdo->prepare("SELECT COUNT(*) FROM book b JOIN category c ON b.Category_id = c.Category_id $where");
+$cnt_stmt->execute($params);
+$total_books = (int)$cnt_stmt->fetchColumn();
+$total_pages = max(1, (int)ceil($total_books / $per_page));
+$page        = min($page, $total_pages);
+$offset      = ($page - 1) * $per_page;
 
+// Fetch page of books
+$sql  = "SELECT b.*, c.Name AS CategoryName FROM book b JOIN category c ON b.Category_id = c.Category_id $where ORDER BY b.Title LIMIT $per_page OFFSET $offset";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $books = $stmt->fetchAll();
@@ -52,7 +68,7 @@ require __DIR__ . '/partials/header.php';
             <?php foreach ($categories as $cat): ?>
             <option value="<?= e($cat['Category_id']) ?>"
                 <?= $cat_id === (int)$cat['Category_id'] ? 'selected' : '' ?>>
-                <?= e($cat['Name']) ?>
+                <?= e($cat['Name']) ?> (<?= (int)$cat['BookCount'] ?>)
             </option>
             <?php endforeach; ?>
         </select>
@@ -63,9 +79,12 @@ require __DIR__ . '/partials/header.php';
     </div>
 </form>
 
-<?php if (empty($books)): ?>
+<?php if (empty($books) && $page === 1): ?>
 <div class="alert alert-info">No books found matching your criteria.</div>
 <?php else: ?>
+<p class="text-muted small mb-3">
+    Showing <?= $offset + 1 ?>–<?= min($offset + $per_page, $total_books) ?> of <?= $total_books ?> books
+</p>
 <div class="row row-cols-1 row-cols-md-3 g-4">
     <?php foreach ($books as $book): ?>
     <div class="col">
@@ -102,6 +121,29 @@ require __DIR__ . '/partials/header.php';
     </div>
     <?php endforeach; ?>
 </div>
+
+<?php if ($total_pages > 1): ?>
+<?php
+$qs = http_build_query(array_filter(['q' => $search, 'cat' => $cat_id ?: null]));
+$base = '/index.php' . ($qs ? '?' . $qs . '&' : '?');
+?>
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+            <a class="page-link" href="<?= $base ?>page=<?= $page - 1 ?>">Previous</a>
+        </li>
+        <?php for ($p = 1; $p <= $total_pages; $p++): ?>
+        <li class="page-item <?= $p === $page ? 'active' : '' ?>">
+            <a class="page-link" href="<?= $base ?>page=<?= $p ?>"><?= $p ?></a>
+        </li>
+        <?php endfor; ?>
+        <li class="page-item <?= $page >= $total_pages ? 'disabled' : '' ?>">
+            <a class="page-link" href="<?= $base ?>page=<?= $page + 1 ?>">Next</a>
+        </li>
+    </ul>
+</nav>
+<?php endif; ?>
+
 <?php endif; ?>
 
 <?php require __DIR__ . '/partials/footer.php'; ?>
