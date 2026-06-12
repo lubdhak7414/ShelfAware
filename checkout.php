@@ -32,6 +32,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$member) {
                 $error = 'Member not found.';
             } else {
+                // Reject if member already has an active loan for this book
+                $dup = $pdo->prepare("SELECT 1 FROM loan WHERE Book_id = ? AND Member_id = ? AND ReturnDate IS NULL");
+                $dup->execute([$book_id, $member_id]);
+                if ($dup->fetch()) {
+                    $error = 'This member already has an active loan for that book.';
+                }
+            }
+
+            if (!$error && $member) {
                 $stmt = $pdo->prepare("INSERT INTO loan (Book_id, Member_id, LoanDate, DueDate) VALUES (?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL ? DAY))");
                 $stmt->execute([$book_id, $member_id, LOAN_DAYS]);
 
