@@ -15,8 +15,15 @@ Community library lending system built with PHP 8.2 and MySQL. Demonstrates rela
 ## Prerequisites
 
 - PHP 8.2+
-- MySQL 8.0 / MariaDB 10.6+
+- MySQL 8.0+ / MariaDB 10.6+
 - A web server (Apache, Nginx) or PHP's built-in server
+
+> **MySQL 8.4+ note:** MySQL 8.4 removed `mysql_native_password` as a default plugin.
+> If PDO fails to connect, either add `caching_sha2_password` support in `db.php` or
+> create the database user with `mysql_native_password`:
+> ```sql
+> ALTER USER 'shelfaware'@'localhost' IDENTIFIED WITH mysql_native_password BY 'yourpassword';
+> ```
 
 ## Setup
 
