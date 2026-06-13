@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS loan (
     LoanDate DATE NOT NULL,
     DueDate DATE NOT NULL,
     ReturnDate DATE NULL,
+    renewals TINYINT NOT NULL DEFAULT 0,
     CONSTRAINT fk_loan_book FOREIGN KEY (Book_id) REFERENCES book(Book_id),
     CONSTRAINT fk_loan_member FOREIGN KEY (Member_id) REFERENCES member(Member_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -69,7 +70,9 @@ CREATE TABLE IF NOT EXISTS fine (
     Amount DECIMAL(8,2) NOT NULL,
     Paid TINYINT(1) NOT NULL DEFAULT 0,
     PaidAt DATETIME NULL,
-    CONSTRAINT fk_fine_loan FOREIGN KEY (Loan_id) REFERENCES loan(Loan_id)
+    CollectedBy INT NULL,
+    CONSTRAINT fk_fine_loan FOREIGN KEY (Loan_id) REFERENCES loan(Loan_id),
+    CONSTRAINT fk_fine_staff FOREIGN KEY (CollectedBy) REFERENCES staff(Staff_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS review (
@@ -137,8 +140,8 @@ INSERT INTO hold (Hold_id, Book_id, Member_id, PlacedAt, Status) VALUES
 
 -- Sample fine for returned-late loan (loan 1 was returned on time — no fine)
 -- Fine for overdue loan 3
-INSERT INTO fine (Fine_id, Loan_id, Amount, Paid, PaidAt) VALUES
-(1, 3, 2.50, 0, NULL);
+INSERT INTO fine (Fine_id, Loan_id, Amount, Paid, PaidAt, CollectedBy) VALUES
+(1, 3, 2.50, 0, NULL, NULL);
 
 -- Sample reviews
 INSERT INTO review (Review_id, Book_id, Member_id, Rating, Comment, CreatedAt) VALUES
