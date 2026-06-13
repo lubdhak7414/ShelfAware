@@ -24,6 +24,7 @@
             <ul class="navbar-nav">
                 <?php if (!empty($_SESSION['member_id'])): ?>
                 <li class="nav-item"><a class="nav-link" href="/my_account.php">My Account</a></li>
+                <li class="nav-item"><a class="nav-link" href="/renew.php">Renew Loans</a></li>
                 <li class="nav-item"><a class="nav-link" href="/logout.php">Log Out</a></li>
                 <?php elseif (!empty($_SESSION['staff_id'])): ?>
                 <li class="nav-item"><a class="nav-link" href="/staff_dashboard.php"><?= e($_SESSION['staff_username'] ?? 'Staff') ?></a></li>

@@ -8,8 +8,15 @@ require_login();
 $pdo = get_pdo();
 $mid = (int)$_SESSION['member_id'];
 
-// Current loans
-$stmt = $pdo->prepare("SELECT l.*, b.Title FROM loan l JOIN book b ON l.Book_id = b.Book_id WHERE l.Member_id = ? ORDER BY l.LoanDate DESC");
+// Current loans (include renewals count and waiting hold count for renew eligibility)
+$stmt = $pdo->prepare(
+    "SELECT l.*, b.Title,
+            (SELECT COUNT(1) FROM hold h WHERE h.Book_id = l.Book_id AND h.Status = 'waiting') AS WaitingHolds
+     FROM loan l
+     JOIN book b ON l.Book_id = b.Book_id
+     WHERE l.Member_id = ?
+     ORDER BY l.LoanDate DESC"
+);
 $stmt->execute([$mid]);
 $loans = $stmt->fetchAll();
 
@@ -35,15 +42,24 @@ require __DIR__ . '/partials/header.php';
 <p class="text-muted">No loans on record.</p>
 <?php else: ?>
 <table class="table table-sm table-hover">
-    <thead><tr><th>Book</th><th>Loan Date</th><th>Due Date</th><th>Returned</th></tr></thead>
+    <thead><tr><th>Book</th><th>Loan Date</th><th>Due Date</th><th>Returned</th><th>Renewals</th><th></th></tr></thead>
     <tbody>
     <?php foreach ($loans as $l): ?>
-    <?php $overdue = !$l['ReturnDate'] && strtotime($l['DueDate']) < time(); ?>
+    <?php
+        $overdue   = !$l['ReturnDate'] && strtotime($l['DueDate']) < time();
+        $can_renew = !$l['ReturnDate'] && (int)$l['renewals'] < 2 && (int)$l['WaitingHolds'] === 0;
+    ?>
     <tr class="<?= $overdue ? 'table-danger' : '' ?>">
         <td><?= e($l['Title']) ?></td>
         <td><?= e($l['LoanDate']) ?></td>
         <td><?= e($l['DueDate']) ?></td>
         <td><?= $l['ReturnDate'] ? e($l['ReturnDate']) : ($overdue ? '<span class="text-danger">Overdue</span>' : 'Active') ?></td>
+        <td><?= $l['ReturnDate'] ? '—' : ((int)$l['renewals'] . ' / 2') ?></td>
+        <td>
+            <?php if ($can_renew): ?>
+            <a href="/renew.php" class="btn btn-xs btn-sm btn-outline-primary py-0 px-1">Renew</a>
+            <?php endif; ?>
+        </td>
     </tr>
     <?php endforeach; ?>
     </tbody>
