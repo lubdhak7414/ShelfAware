@@ -52,6 +52,10 @@ require __DIR__ . '/partials/header.php';
 
 <h2 class="mb-4">Admin Panel</h2>
 
+<div class="mb-3">
+    <a href="/member_stats.php" class="btn btn-outline-primary btn-sm">Member Borrowing Stats</a>
+</div>
+
 <?php if ($msg):   ?><div class="alert alert-success"><?= e($msg) ?></div><?php endif; ?>
 <?php if ($error): ?><div class="alert alert-danger"><?= e($error) ?></div><?php endif; ?>
 <?php if (!empty($_GET['deleted'])): ?><div class="alert alert-warning">Staff account deleted.</div><?php endif; ?>

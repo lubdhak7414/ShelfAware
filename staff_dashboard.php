@@ -82,8 +82,10 @@ require __DIR__ . '/partials/header.php';
     <div class="col-auto"><a href="/manage_books.php" class="btn btn-outline-secondary">Manage Books</a></div>
     <div class="col-auto"><a href="/holds.php" class="btn btn-outline-secondary">View Holds</a></div>
     <div class="col-auto"><a href="/overdue.php" class="btn btn-outline-danger">Overdue Report</a></div>
+    <div class="col-auto"><a href="/collect_fine.php" class="btn btn-outline-warning">Collect Fines</a></div>
     <?php if ($_SESSION['staff_role'] === 'admin'): ?>
     <div class="col-auto"><a href="/staff_admin.php" class="btn btn-outline-dark">Admin Panel</a></div>
+    <div class="col-auto"><a href="/member_stats.php" class="btn btn-outline-dark">Member Stats</a></div>
     <?php endif; ?>
 </div>
 
