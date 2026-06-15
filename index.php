@@ -5,10 +5,21 @@ require_once __DIR__ . '/helpers.php';
 
 $pdo = get_pdo();
 
-$search   = trim($_GET['q'] ?? '');
-$cat_id   = (int)($_GET['cat'] ?? 0);
-$page     = max(1, (int)($_GET['page'] ?? 1));
-$per_page = 25;
+$search        = trim($_GET['q'] ?? '');
+$author_search = trim($_GET['author'] ?? '');
+$cat_id        = (int)($_GET['cat'] ?? 0);
+$available_only = !empty($_GET['available']);
+$sort          = $_GET['sort'] ?? 'title_asc';
+$page          = max(1, (int)($_GET['page'] ?? 1));
+$per_page      = 25;
+
+// Allowed sort options mapped to ORDER BY clauses
+$sort_options = [
+    'title_asc'   => 'b.Title ASC',
+    'author_asc'  => 'b.Author ASC',
+    'year_desc'   => 'b.Year DESC',
+];
+$order_by = $sort_options[$sort] ?? 'b.Title ASC';
 
 // Fetch categories with per-category book counts for the filter dropdown
 $categories = $pdo->query(
@@ -19,25 +30,37 @@ $categories = $pdo->query(
      ORDER BY c.Name"
 )->fetchAll();
 
-// Build base WHERE clause
-$where  = "WHERE 1=1";
-$params = [];
+// Build WHERE clause dynamically
+$conditions = ["1=1"];
+$params     = [];
 
 if ($search !== '') {
-    $where   .= " AND (b.Title LIKE ? OR b.Author LIKE ? OR b.ISBN LIKE ?)";
-    $like     = '%' . $search . '%';
-    $params[] = $like;
-    $params[] = $like;
-    $params[] = $like;
+    $conditions[] = "(b.Title LIKE ? OR b.ISBN LIKE ?)";
+    $like          = '%' . $search . '%';
+    $params[]      = $like;
+    $params[]      = $like;
+}
+
+if ($author_search !== '') {
+    $conditions[] = "b.Author LIKE ?";
+    $params[]     = '%' . $author_search . '%';
 }
 
 if ($cat_id > 0) {
-    $where   .= " AND b.Category_id = ?";
-    $params[] = $cat_id;
+    $conditions[] = "b.Category_id = ?";
+    $params[]     = $cat_id;
 }
 
+if ($available_only) {
+    $conditions[] = "b.CopiesAvailable > 0";
+}
+
+$where = "WHERE " . implode(" AND ", $conditions);
+
 // Total count for pagination
-$cnt_stmt = $pdo->prepare("SELECT COUNT(*) FROM book b JOIN category c ON b.Category_id = c.Category_id $where");
+$cnt_stmt = $pdo->prepare(
+    "SELECT COUNT(*) FROM book b JOIN category c ON b.Category_id = c.Category_id $where"
+);
 $cnt_stmt->execute($params);
 $total_books = (int)$cnt_stmt->fetchColumn();
 $total_pages = max(1, (int)ceil($total_books / $per_page));
@@ -45,7 +68,11 @@ $page        = min($page, $total_pages);
 $offset      = ($page - 1) * $per_page;
 
 // Fetch page of books
-$sql  = "SELECT b.*, c.Name AS CategoryName FROM book b JOIN category c ON b.Category_id = c.Category_id $where ORDER BY b.Title LIMIT $per_page OFFSET $offset";
+$sql  = "SELECT b.*, c.Name AS CategoryName
+         FROM book b JOIN category c ON b.Category_id = c.Category_id
+         $where
+         ORDER BY $order_by
+         LIMIT $per_page OFFSET $offset";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $books = $stmt->fetchAll();
@@ -56,26 +83,49 @@ require __DIR__ . '/partials/header.php';
 
 <h2 class="mb-4">Library Catalogue</h2>
 
-<form method="get" class="row g-2 mb-4">
-    <div class="col-sm-6">
-        <input type="text" name="q" class="form-control"
-               placeholder="Search title, author or ISBN&hellip;"
-               value="<?= e($search) ?>">
+<form method="get" class="mb-4">
+    <div class="row g-2 mb-2">
+        <div class="col-sm-5">
+            <input type="text" name="q" class="form-control"
+                   placeholder="Search title or ISBN&hellip;"
+                   value="<?= e($search) ?>">
+        </div>
+        <div class="col-sm-4">
+            <input type="text" name="author" class="form-control"
+                   placeholder="Search by author&hellip;"
+                   value="<?= e($author_search) ?>">
+        </div>
+        <div class="col-sm-3">
+            <select name="cat" class="form-select">
+                <option value="0">All Categories</option>
+                <?php foreach ($categories as $cat): ?>
+                <option value="<?= e($cat['Category_id']) ?>"
+                    <?= $cat_id === (int)$cat['Category_id'] ? 'selected' : '' ?>>
+                    <?= e($cat['Name']) ?> (<?= (int)$cat['BookCount'] ?>)
+                </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
     </div>
-    <div class="col-sm-3">
-        <select name="cat" class="form-select">
-            <option value="0">All Categories</option>
-            <?php foreach ($categories as $cat): ?>
-            <option value="<?= e($cat['Category_id']) ?>"
-                <?= $cat_id === (int)$cat['Category_id'] ? 'selected' : '' ?>>
-                <?= e($cat['Name']) ?> (<?= (int)$cat['BookCount'] ?>)
-            </option>
-            <?php endforeach; ?>
-        </select>
-    </div>
-    <div class="col-sm-auto">
-        <button type="submit" class="btn btn-primary">Search</button>
-        <a href="/index.php" class="btn btn-outline-secondary">Reset</a>
+    <div class="row g-2 align-items-center">
+        <div class="col-sm-3">
+            <select name="sort" class="form-select">
+                <option value="title_asc"  <?= $sort === 'title_asc'  ? 'selected' : '' ?>>Title A–Z</option>
+                <option value="author_asc" <?= $sort === 'author_asc' ? 'selected' : '' ?>>Author A–Z</option>
+                <option value="year_desc"  <?= $sort === 'year_desc'  ? 'selected' : '' ?>>Year (newest first)</option>
+            </select>
+        </div>
+        <div class="col-sm-auto">
+            <div class="form-check mt-1">
+                <input class="form-check-input" type="checkbox" name="available" id="chk_available"
+                       value="1" <?= $available_only ? 'checked' : '' ?>>
+                <label class="form-check-label" for="chk_available">Show only available</label>
+            </div>
+        </div>
+        <div class="col-sm-auto">
+            <button type="submit" class="btn btn-primary">Search</button>
+            <a href="/index.php" class="btn btn-outline-secondary">Reset</a>
+        </div>
     </div>
 </form>
 
@@ -124,7 +174,13 @@ require __DIR__ . '/partials/header.php';
 
 <?php if ($total_pages > 1): ?>
 <?php
-$qs = http_build_query(array_filter(['q' => $search, 'cat' => $cat_id ?: null]));
+$qs = http_build_query(array_filter([
+    'q'         => $search,
+    'author'    => $author_search,
+    'cat'       => $cat_id ?: null,
+    'available' => $available_only ? '1' : null,
+    'sort'      => $sort !== 'title_asc' ? $sort : null,
+]));
 $base = '/index.php' . ($qs ? '?' . $qs . '&' : '?');
 ?>
 <nav class="mt-4">
