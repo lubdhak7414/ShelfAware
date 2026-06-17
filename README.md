@@ -28,6 +28,19 @@ php -S localhost:8080
 ALTER USER 'youruser'@'localhost' IDENTIFIED WITH mysql_native_password BY 'yourpassword';
 ```
 
+## Docker
+
+```bash
+docker compose up --build
+```
+
+The app runs at http://localhost:8080. The database is seeded automatically from `database.sql` on first start. Demo accounts are the same as above.
+
+To stop and remove volumes:
+```bash
+docker compose down -v
+```
+
 ## Accounts (seed data)
 
 | Role | Login | Password |
